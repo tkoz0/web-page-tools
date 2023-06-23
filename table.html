@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>table editor</title>
+    <style>
+        header {
+            font-size: 200%;
+            text-align: center;
+        }
+        table {
+            background: lightgray;
+            border-collapse: collapse;
+        }
+        td {
+            padding: 0;
+            border: 1px solid black;
+        }
+        .cell-input {
+            width: 80px;
+            padding: 0;
+            border: 0;
+        }
+        .cell-input:focus {
+            background-color: lightblue;
+        }
+        .td-center {
+            text-align: center;
+        }
+        .add-row, .del-row, .add-col, .del-col {
+            width: 40px;
+            padding: 0;
+        }
+        .add-row, .add-col {
+            background-color: lightgreen;
+        }
+        .del-row, .del-col {
+            background-color: rgb(255,127,127);
+        }
+        .select-row, .select-col {
+            background-color: yellow;
+        }
+    </style>
+</head>
+<body>
+    <header>table editor</header>
+    <section>
+        <table id="table">
+            <tr>
+                <td></td>
+                <td></td>
+                <td class="td-center"><input type="checkbox" class="check-col" /></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td></td>
+                <td></td>
+                <td><button class="add-col">+col</button><button class="del-col">-col</button></td>
+                <td><button class="add-col add-col-end">+col</button></td>
+            </tr>
+            <tr>
+                <td class="td-center"><input type="checkbox" class="check-row" /></td>
+                <td><button class="add-row">+row</button><button class="del-row">-row</button></td>
+                <td class="td-cell"><input value="" class="cell-input" /></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td></td>
+                <td><button class="add-row add-row-end">+row</button></td>
+                <td></td>
+                <td></td>
+            </tr>
+        </table>
+    </section>
+    <footer>
+        <button id="clear-table">clear table</button>
+        <button id="fill-table">fill table</button>
+        <button id="copy-table">copy table</button>
+    </footer>
+    <!-- code -->
+    <script>
+
+// Table Editor
+
+// Constants for arrow keys
+const KEY_LEFT = 37;
+const KEY_UP = 38;
+const KEY_RIGHT = 39;
+const KEY_DOWN = 40;
+function isArrowKey(key) {
+    return key == KEY_LEFT || key == KEY_UP 
+        || key == KEY_RIGHT || key == KEY_DOWN;
+}
+
+// Global variables
+var ROWS = 1;
+var COLS = 1;
+const table = document.getElementById('table');
+
+// Returns the [row,col] position of a <td> element in the table
+function getRowCol(cell) {
+    var row = cell.parentNode;
+    var colIndex = [].indexOf.call(row.children,cell);
+    var rowIndex = [].indexOf.call(row.parentNode.children,row);
+    return [rowIndex,colIndex];
+}
+
+// Event listener for +row buttons
+function addRow() {
+    var currentRow = this.parentNode.parentNode;
+    var newRow = null;
+    // copy previous row if it is last +row button, otherwise current row
+    if (this.classList.contains('add-row-end'))
+        newRow = currentRow.previousElementSibling.cloneNode(true);
+    else
+        newRow = currentRow.cloneNode(true);
+    // clear text boxes
+    inputs = newRow.getElementsByTagName('input');
+    for (var i = 0; i < inputs.length; ++i)
+        inputs[i].value = '';
+    // add listeners for the new row
+    setClickListeners(newRow,'check-row',highlightRow);
+    setClickListeners(newRow,'add-row',addRow);
+    setClickListeners(newRow,'del-row',delRow);
+    setArrowKeyInputs(newRow);
+    // resize table
+    currentRow.parentNode.insertBefore(newRow,currentRow);
+    ROWS += 1;
+}
+
+// Event listener for +col buttons
+function addCol() {
+    var currentCell = this.parentNode;
+    var colIndex = [].indexOf.call(currentCell.parentNode.children,currentCell);
+    var tableRows = currentCell.parentNode.parentNode.children;
+    // insert new element into each row to add a new column
+    for (var r = 0; r < tableRows.length; ++r) {
+        currentCell = tableRows[r].children[colIndex];
+        var newCell = null;
+        // copy previous cell if last +col button is clicked
+        if (this.classList.contains('add-col-end'))
+            newCell = currentCell.previousElementSibling.cloneNode(true);
+        else
+            newCell = currentCell.cloneNode(true);
+        // clear text box if it has one
+        inputs = newCell.getElementsByTagName('input');
+        for (var i = 0; i < inputs.length; ++i)
+            inputs[i].value = '';
+        // ensure buttons/checkboxes/textboxes have event listeners
+        setClickListeners(newCell,'check-col',highlightCol);
+        setClickListeners(newCell,'add-col',addCol);
+        setClickListeners(newCell,'del-col',delCol);
+        setArrowKeyInputs(newCell);
+        tableRows[r].insertBefore(newCell,currentCell);
+    }
+    COLS += 1;
+}
+
+// Event listener for -row buttons
+function delRow() {
+    // remove current row if it is not the only row left
+    if (ROWS == 1) {
+        alert('need >= 1 row');
+        return;
+    }
+    var currentRow = this.parentNode.parentNode;
+    currentRow.parentNode.removeChild(currentRow);
+    ROWS -= 1;
+}
+
+// Event listener for -col buttons
+function delCol() {
+    // remove current col if it is not the only col left
+    if (COLS == 1) {
+        alert('need >= 1 col');
+        return;
+    }
+    var currentCell = this.parentNode;
+    var colIndex = [].indexOf.call(currentCell.parentNode.children,currentCell);
+    var tableRows = currentCell.parentNode.parentNode.children;
+    // remove this index from each row to resize the table
+    for (var r = 0; r < tableRows.length; ++r) {
+        currentCell = tableRows[r].children[colIndex];
+        currentCell.parentNode.removeChild(currentCell);
+    }
+    COLS -= 1;
+}
+
+// Event listener for row checkboxes
+function highlightRow() {
+    var row = this.parentNode.parentNode;
+    var cells = row.getElementsByClassName('cell-input');
+    // set select-row class to highlight textboxes
+    for (var i = 0; i < cells.length; ++i) {
+        if (this.checked) {
+            cells[i].classList.add('select-row');
+        } else {
+            cells[i].classList.remove('select-row');
+        }
+    }
+}
+
+// Event listener for col checkboxes
+function highlightCol() {
+    var currentCell = this.parentNode;
+    var colIndex = [].indexOf.call(currentCell.parentNode.children,currentCell);
+    var rows = this.parentNode.parentNode.parentNode.children;
+    // set select-col class to highlight the proper checkbox in rows with them
+    for (var i = 2; i < rows.length-1; ++i) {
+        var textBox = rows[i].children[colIndex].children[0];
+        if (this.checked) {
+            textBox.classList.add('select-col');
+        } else {
+            textBox.classList.remove('select-col');
+        }
+    }
+}
+
+// Sets a click listener for all elements inside a node with the given class
+function setClickListeners(node,class_,listener) {
+    var buttons = node.getElementsByClassName(class_);
+    for (var i = 0; i < buttons.length; ++i)
+        buttons[i].addEventListener('click',listener);
+}
+
+// Set event listeners for existing buttons when the page loads
+setClickListeners(document,'add-row',addRow);
+setClickListeners(document,'del-row',delRow);
+setClickListeners(document,'add-col',addCol);
+setClickListeners(document,'del-col',delCol);
+setClickListeners(document,'check-row',highlightRow);
+setClickListeners(document,'check-col',highlightCol);
+
+// Event listener for textboxes
+function onArrowKey(e) {
+    if (!this.classList.contains('cell-input'))
+        return;
+    var key = e.keyCode;
+    var currentRow = this.parentNode.parentNode;
+    var tableElement = currentRow.parentNode;
+    var position = getRowCol(this.parentNode);
+    // subtract 2 to get 0 indexed table coordinates
+    var r = position[0]-2;
+    var c = position[1]-2;
+    var newCell = null;
+    // get the new cell, looping around the ends of the table
+    switch (key) {
+        case KEY_LEFT:
+            c = (COLS+c-1)%COLS;
+            newCell = currentRow.children[c+2];
+            break;
+        case KEY_UP:
+            r = (ROWS+r-1)%ROWS;
+            newCell = tableElement.children[r+2].children[c+2];
+            break;
+        case KEY_RIGHT:
+            c = (c+1)%COLS;
+            newCell = currentRow.children[c+2];
+            break;
+        case KEY_DOWN:
+            r = (r+1)%ROWS;
+            newCell = tableElement.children[r+2].children[c+2];
+            break;
+        default:
+            return;
+    }
+    // set focus on the new position
+    newCell.children[0].focus();
+    var textLength = newCell.children[0].value.length;
+    newCell.children[0].setSelectionRange(0,textLength);
+    // ignore default behavior
+    e.preventDefault();
+}
+
+// Sets the onArroyKey listener to each textbox in node
+function setArrowKeyInputs(node) {
+    inputs = node.getElementsByTagName('input');
+    for (var i = 0; i < inputs.length; ++i)
+        inputs[i].addEventListener('keydown',onArrowKey);
+}
+
+// Set event listener for the initial textbox when the page loads
+setArrowKeyInputs(table);
+
+// Set click listeners for the 3 buttons at the bottom
+
+document.getElementById('clear-table').addEventListener('click', function() {
+    if (confirm('are you sure?')) {
+        // empty all textboxes if user clicks ok
+        var cells = document.getElementsByClassName('cell-input');
+        for (var i = 0; i < cells.length; ++i)
+            cells[i].value = '';
+    }
+});
+
+document.getElementById('fill-table').addEventListener('click', function() {
+    var value = prompt('what value?');
+    if (value != null) {
+        // set value in each textbox if user inputs something
+        var cells = document.getElementsByClassName('cell-input');
+        for (var i = 0; i < cells.length; ++i)
+            cells[i].value = value;
+    }
+});
+
+document.getElementById('copy-table').addEventListener('click', function() {
+    var sep = prompt('input value separator');
+    if (sep == null)
+        return;
+    // if user inputs a separator, construct a string representation
+    // each row becomes a line, elements separated by sep
+    var value = '';
+    var tableRows = table.children[0].children;
+    for (var r = 0; r < ROWS; ++r) {
+        var line = tableRows[r+2].children[2].children[0].value;
+        for (var c = 1; c < COLS; ++c) {
+            line += sep + tableRows[r+2].children[c+2].children[0].value;
+        }
+        value += line+'\n';
+    }
+    // put the result in the clipboard
+    navigator.clipboard.writeText(value);
+});
+
+    </script>
+</body>
+</html>

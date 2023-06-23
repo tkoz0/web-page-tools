@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>csv displayer</title>
+    <style>
+        body {
+            margin: 0;
+        }
+        button {
+            display: block;
+        }
+        #root {
+            display: flex;
+        }
+        #root > * {
+            padding: 5px;
+            margin: 5px;
+        }
+        #menu {
+            background: lightblue;
+            max-width: 200px;
+        }
+        #table {
+            border-collapse: collapse;
+            background: lightgray;
+        }
+        td, th {
+            border: 1px solid black;
+            min-width: 20px;
+            padding-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div id="menu">
+            <h2>csv displayer</h2>
+            url:<br />
+            <input type="text" id="url" /><br />
+            <button id="button" onclick="">load</button>
+            <span id="message"></span>
+            <p>parsing is very simple, will not handle quoted strings, escape sequences, or commas inside strings</p>
+        </div>
+        <div>
+        <table id="table"><tbody id="table_body">
+        </tbody></table>
+        </div>
+    </div>
+    <!-- code -->
+    <script>
+
+document.getElementById('url').addEventListener('keyup', e => {
+    if (e.keyCode === 13)
+        document.getElementById('button').click();
+});
+
+document.getElementById('button').addEventListener('click', e => {
+    let url = document.getElementById('url').value;
+    setTableFromCSV(url);
+});
+
+function setTable(data,header=false) {
+    //console.log(data);
+    //console.log(header);
+    let ret = ``;
+    for (let i = 0; i < data.length; ++i) {
+        ret += `<tr>`;
+        for (let j = 0; j < data[i].length; ++j) {
+            if (i === 0 && header)
+                ret += `<th>` + data[i][j] + `</th>`;
+            else
+                ret += `<td>` + data[i][j] + `</td>`;
+        }
+        ret += `</tr>`;
+    }
+    //console.log(ret);
+    document.getElementById('table_body').innerHTML = ret;
+}
+
+async function setTableFromCSV(url,header=false,delim=',') {
+    let data = await fetch(url);//.then(response => response.text());
+    if (!data.ok) {
+        document.getElementById('message').innerHTML = 'error';
+        return;
+    }
+    data = await data.text();
+    //console.log(data);
+    data = data.split('\n').filter(line => line.length > 0);
+    //console.log(data);
+    for (let i = 0; i < data.length; ++i) {
+        data[i] = data[i].split(',');
+    }
+    //console.log(data);
+    setTable(data,header);
+    document.getElementById('message').innerHTML = 'success';
+}
+
+    </script>
+</body>
+</html>
